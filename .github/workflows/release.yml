@@ -1,0 +1,90 @@
+name: Build Windows release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Set release version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          python scripts/set_version.py $version
+
+      - name: Install Python build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-build.txt
+
+      - name: Bundle Chromium
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path vendor\playwright | Out-Null
+          $env:PLAYWRIGHT_BROWSERS_PATH = "$env:GITHUB_WORKSPACE\vendor\playwright"
+          python -m playwright install chromium
+
+      - name: Bundle FFmpeg and ffprobe
+        shell: pwsh
+        run: |
+          Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "$env:RUNNER_TEMP\ffmpeg.zip"
+          Expand-Archive "$env:RUNNER_TEMP\ffmpeg.zip" -DestinationPath "$env:RUNNER_TEMP\ffmpeg" -Force
+          $ffmpeg = Get-ChildItem "$env:RUNNER_TEMP\ffmpeg" -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          $ffprobe = Get-ChildItem "$env:RUNNER_TEMP\ffmpeg" -Recurse -Filter ffprobe.exe | Select-Object -First 1
+          if (-not $ffmpeg -or -not $ffprobe) { throw "FFmpeg download did not contain ffmpeg.exe + ffprobe.exe" }
+          New-Item -ItemType Directory -Force -Path vendor\ffmpeg\bin | Out-Null
+          Copy-Item $ffmpeg.FullName vendor\ffmpeg\bin\ffmpeg.exe
+          Copy-Item $ffprobe.FullName vendor\ffmpeg\bin\ffprobe.exe
+
+      - name: Build StreamShift DVR
+        shell: pwsh
+        run: pyinstaller --noconfirm --clean StreamShiftDVR.spec
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          if (-not (Test-Path "release\StreamShift-DVR-Setup.exe")) { throw "Installer was not created" }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StreamShift-DVR-Windows
+          path: release/StreamShift-DVR-Setup.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if (gh release view $tag 2>$null) {
+            gh release upload $tag "release\StreamShift-DVR-Setup.exe" --clobber
+          } else {
+            gh release create $tag "release\StreamShift-DVR-Setup.exe" --title "StreamShift DVR $tag" --generate-notes
+          }

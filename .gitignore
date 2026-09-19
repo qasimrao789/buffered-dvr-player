@@ -1,32 +1,9 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
 .venv/
-venv/
-env/
-ENV/
-
-# Packaging
+__pycache__/
+*.pyc
 build/
 dist/
-*.egg-info/
-
-# IDE/editor
-.vscode/
-.idea/
-*.swp
-.DS_Store
-Thumbs.db
-
-# Local runtime/output
+release/
+vendor/
 stream-player-insecure-profile/
-Buffered Livestream/
-Buffered Livestream Screenshots/
-*.ts
-*.m3u8
-
-# Logs
 *.log

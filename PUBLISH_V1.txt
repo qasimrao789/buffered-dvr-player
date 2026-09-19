@@ -1,0 +1,17 @@
+ONE-TIME GITHUB PUBLISH
+=======================
+
+1. Extract this ZIP.
+2. Right-click publish_to_github.ps1 and choose "Run with PowerShell".
+   If PowerShell blocks script execution, open PowerShell in this folder and run:
+
+   powershell -ExecutionPolicy Bypass -File .\publish_to_github.ps1
+
+3. Git may open a browser once for GitHub authentication.
+4. The script replaces the repository source with this release, pushes main,
+   and creates tag v1.0.0.
+5. The tag triggers GitHub Actions. Wait for "Build Windows release" to finish.
+6. GitHub Releases will then contain StreamShift-DVR-Setup.exe.
+
+After that, new PCs only need the latest installer from GitHub Releases.
+The installed app checks GitHub Releases for updates itself.
